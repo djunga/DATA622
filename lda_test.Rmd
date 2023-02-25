@@ -1,0 +1,135 @@
+---
+title: "lda_test"
+author: "Tora Mullings"
+date: "2023-02-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(tidyverse)
+library(corrplot)
+library(reshape2)
+library(MASS)
+```
+
+```{r}
+glass <- read_csv('glass.csv', col_types = 'nnnnnnnnnnf')
+```
+
+# Data Exploration
+
+## Glimpse
+```{r}
+glimpse(glass)
+```
+
+Change response column name
+```{r}
+colnames(glass)[11] <- "glass_type"
+```
+
+##See distributions of variables. Check for normality.
+```{r}
+glass_melt = melt(subset(glass, select=-c(glass_type)), id.vars = "Id")
+
+ggplot(aes(value), data = glass_melt) + geom_histogram(stat = "bin", fill = "navyblue") + facet_wrap(~variable, scales = "free") + labs(title = "Distributions of Continuous Variables", x = "Variable", y = "Count") 
+```
+
+
+Drop Id Column
+```{r}
+glass <- glass %>% subset(select=-c(Id))
+```
+
+## Summary
+```{r}
+summary(glass)
+```
+The glass types are 1,2,3,5,6,7. There is no type 4. Adjust for consistency. 
+```{r}
+glass$glass_type <- factor(glass$glass_type, labels = c(1,2,3,4,5,6))
+summary(glass)
+```
+
+
+
+## Correlation plot - See which predictors are most likely to influence glass type 
+```{r}
+# corrplot::corrplot.mixed(cor(dplyr::select(glass, 'RI':'Fe'), use = "complete.obs"), tl.col="black", tl.cex=0.6, order='AOE')
+
+corrplot::corrplot(cor(dplyr::select(glass, 'RI':'Fe'), use = "complete.obs"), method = 'circle', type = 'lower', insig='blank', addCoef.col ='black', number.cex = 0.8, order = 'AOE', diag=FALSE)
+
+```
+
+
+## Create train and test sets
+```{r}
+set.seed(1234)
+sample_set <- sample(nrow(glass), round(nrow(glass)*0.75), replace=FALSE)
+glass_train <- glass[sample_set, ]
+glass_test <- glass[-sample_set, ]
+```
+
+## Fit model
+```{r}
+lda_mod <- lda(glass_type ~ ., data=glass_train)
+```
+
+```{r}
+lda_mod
+```
+
+
+```{r}
+plot(lda_mod)
+```
+
+
+
+```{r}
+predictions <- predict(lda_mod, glass_test)
+predictions
+```
+
+
+```{r}
+pred_table <- table(glass_test$glass_type, predictions$class)
+```
+
+```{r}
+data.frame(original = glass_test$glass_type, pred = predictions$class)
+```
+
+
+```{r}
+sum(diag(pred_table)) / nrow(glass_test)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
