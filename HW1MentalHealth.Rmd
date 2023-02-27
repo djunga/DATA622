@@ -1,0 +1,160 @@
+---
+title: "HW1 Mental Health NB"
+author: "Tora Mullings"
+date: "2023-02-27"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Results {.tabset}
+
+## Mental Health Issues in Comments: Exploratory Analysis
+
+### Introduction
+
+Our personal sentiments on a subject are sometimes conveyed through the vernacular we use in writing. How does the language we use reveal thought patterns or life outlooks? In what way are words with a negative sentiment indicative of an underlying mental health issue? 
+The exploration of related questions is a pressing task for people who work in mental health professions. The [Mental Health Corpus](https://www.kaggle.com/datasets/reihanenamdari/mental-health-corpus) data set contains texts that exhibit negative mental health attributes and texts that do not. In this analysis, we will build a model that can discern between the two types of texts.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(superml)
+library(e1071)
+library(ROCR)
+```
+The original data set contains 2 columns, the text and the label. A label of 1 indicates that the text is related to negative mental health, while 0 indicates that it is not. The data was cleaned and transformed to prepare it for the model later. This part of the analysis is mainly concerned with building the model, but here are links to the preparation:
+
+* Part 1: [GitHub Link](https://github.com/djunga/DATA622/blob/main/mental_health_prep1.Rmd)
+* Part 2: [GitHub Link](https://github.com/djunga/DATA622/blob/main/mental_health_prep2.Rmd)
+
+Summary of cleaning and transformation:
+
+* There were 2 missing values in the `text` column. These observations were dropped.
+* The `label` column was converted to a factor type.
+* CountVectorizer from the superml library was used to create a sparse matrix. The columns names were each word that appears in the whole data set. 
+  + Each row represented a comment. If a word appeared in the comment, then there was a 1 in the word's column, and 0 otherwise. 
+  + To save space and time, the top 1000 most occurring words were chosen for the columns. 
+  + Stopwords were removed.
+* The labels were refactored from 0 and 1 to "negative" and "positive".
+
+The result is the `comments` data set below.
+```{r}
+comments <- read.csv('comments.csv')
+comments <- comments[,-1]
+head(comments)
+```
+
+After examining the result, we decide to use a Naive Bayes model.
+
+* The features are words in the data set, which are likely to be independent of each other within the different classes (positive and negative).
+* All the features are categorical. A few continuous features would have worked, but we would have to discretize them first.
+* NB models handle noisy and missing data well. We did drop the 2 missing values while cleaning, but if there is noisy data then NB can be counted on to handle it.
+* This is a large data set. A NB model does not actually "learn". Rather, it makes predictions based on calculated probabilities. The probabilities are more reliable when there is more data to work with.   
+* Because of the above reasons, NB will be simple and computationally efficient.
+
+### Training and Test Sets
+We use a 75-25 training-to-test split ratio.
+```{r}
+set.seed(1234)
+sample_set <- sample(nrow(comments), round(nrow(comments)*0.75), replace=FALSE)
+comments_train <- comments[sample_set, ]
+comments_test <- comments[-sample_set, ]
+```
+
+Are the classes balanced?
+
+Overall data:
+```{r}
+round(prop.table(table(select(comments, label))),2)
+```
+Training data:
+```{r}
+round(prop.table(table(select(comments_train, label))),2)
+```
+Test data:
+```{r}
+round(prop.table(table(select(comments_test, label))),2)
+```
+The classes are balanced.
+
+### Training the model
+To account for zero-frequency words which will ruin probability calculations, we use Laplace smoothing with pseudocount = 1.
+```{r}
+comments_mod <- naiveBayes(label ~ .-index, data=comments_train, laplace=1)
+```
+
+### Making predictions 
+Raw predictions
+```{r}
+comments_pred_prob <- predict(comments_mod, comments_test, type="raw")
+head(comments_pred_prob)
+```
+
+Class predictions
+```{r}
+comments_pred <- predict(comments_mod, comments_test, type="class")
+head(comments_pred)
+```
+
+
+### Evaluation
+
+```{r}
+confusionMatrix(comments_pred, comments_test$label, positive="positive")
+```
+At 81.7% accuracy, the model performed well. The kappa value is 0.63. Since it's greater than 0.5, this also indicates that the model performed moderately well.
+
+To visualize how the model did, make an ROC Curve.
+```{r}
+roc_pred <- 
+  prediction(
+    predictions = comments_pred_prob[, "positive"],
+    labels = comments_test$label
+  )
+```
+
+```{r}
+roc_perf <- performance(roc_pred, measure = "tpr", x.measure = "fpr")
+```
+
+
+```{r}
+plot(roc_perf, main = "ROC Curve", col = "green", lwd=3)
+abline(a=0, b=1, lwd=3, lty=2, col=1)
+```
+
+Area Under the Curve, AUC
+```{r}
+auc_perf <- performance(roc_pred, measure = "auc")
+spam_auc <- unlist(slot(auc_perf, "y.values"))
+spam_auc
+```
+The area under the curve is 0.88. The closer to 1, the better. Overall, the NB model did a decent job at predicting whether a comment is related to negative mental health.
+
+
+## Glass Types: Exploratory Analysis
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
