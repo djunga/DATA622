@@ -1,0 +1,98 @@
+---
+title: "HW1MentalHealth"
+author: "Tora Mullings"
+date: "2023-02-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(superml)
+library(e1071)
+```
+
+
+```{r}
+mh_df <- read_csv('mental_health.csv', col_types = 'cf')
+mh_df <- mh_df[complete.cases(mh_df), ]
+
+count_vectorized_mh <- read.csv('large_cloud.csv')   # also contains complete cases
+#mh %>%  unnest_tokens(word, text) %>%  count(word, sort=TRUE)
+```
+
+```{r}
+# save index
+index <- count_vectorized_mh$X
+count_vectorized_mh[count_vectorized_mh > 1] <- 1
+count_vectorized_mh$X <- index
+head(count_vectorized_mh)
+```
+
+
+Add labels to count vectorized texts. Rename index column.
+```{r}
+copy_vectorized <- cbind(label=mh_df$label, count_vectorized_mh)
+levels(copy_vectorized$label) <- list(negative  = 0, positive = 1)
+colnames(copy_vectorized)[2] <- 'index'
+head(copy_vectorized)
+```
+
+
+```{r}
+head(mh_df)
+```
+
+
+```{r}
+# copy_vectorized %>% 
+#   gather(word, count, -index, -label)
+```
+
+```{r}
+set.seed(1234)
+sample_set <- sample(nrow(copy_vectorized), round(nrow(copy_vectorized)*0.75), replace=FALSE)
+text_train <- copy_vectorized[sample_set, ]
+text_test <- copy_vectorized[-sample_set, ]
+```
+
+Show that the classes are balanced.
+```{r}
+
+```
+
+Train model
+```{r}
+text_mod <- naiveBayes(label ~ .-index, data=text_train, laplace=1)
+```
+
+Predict.
+```{r}
+text_pred <- predict(text_mod, text_test, type="class")
+head(text_pred)
+```
+
+```{r}
+text_pred_table <- table(text_test$label, text_pred)
+text_pred_table
+```
+
+```{r}
+sum(diag(text_pred_table)) / nrow(text_test)
+```
+
+
+
+
+
+
+
+
+
+
+
+
